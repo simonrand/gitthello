@@ -15,17 +15,18 @@ module Gitthello
     def synchronize
       puts "==> Handling Board: #{@config.name}"
       @trello_helper.setup
-      @trello_helper.close_issues(@github_helper)
-      @trello_helper.move_cards_with_closed_issue(@github_helper)
-      @github_helper.retrieve_issues
-      @github_helper.new_issues_to_trello(@trello_helper)
+      # @trello_helper.close_issues(@github_helper)
+      # @trello_helper.move_cards_with_closed_issue(@github_helper)
+
+      @github_helper.retrieve_milestones
+      @github_helper.new_milestones_to_trello(@trello_helper)
       @trello_helper.new_cards_to_github(@github_helper)
     end
 
-    def add_trello_link_to_issues
-      @trello_helper.setup
-      @trello_helper.add_trello_link_to_issues(@github_helper)
-    end
+    # def add_trello_link_to_milestones
+    #   @trello_helper.setup
+    #   @trello_helper.add_trello_link_to_milestones(@github_helper)
+    # end
 
     def name
       @config.name

@@ -5,6 +5,17 @@ GIT
   specs:
     dotenv (0.10.0)
 
+GIT
+  remote: https://github.com/simonrand/ruby-trello.git
+  revision: 4caddf32b44816ae00b30750ced2e78742bafaa8
+  specs:
+    ruby-trello (1.1.3)
+      activemodel (>= 3.2.0)
+      addressable (~> 2.3)
+      json
+      oauth (~> 0.4.5)
+      rest-client (~> 1.7.2)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -38,12 +49,13 @@ GEM
       multi_json (>= 1.5)
     kgio (2.9.2)
     method_source (0.8.2)
-    mime-types (1.25.1)
+    mime-types (2.4.3)
     mini_portile (0.5.2)
     minitest (5.4.0)
     multi_json (1.10.1)
     multi_xml (0.5.5)
     multipart-post (2.0.0)
+    netrc (0.10.3)
     nokogiri (1.6.1)
       mini_portile (~> 0.5.0)
     oauth (0.4.7)
@@ -60,17 +72,9 @@ GEM
     rack (1.5.2)
     raindrops (0.13.0)
     rake (10.1.1)
-    rdoc (4.1.1)
-      json (~> 1.4)
-    rest-client (1.6.8)
-      mime-types (~> 1.16)
-      rdoc (>= 2.4.2)
-    ruby-trello (1.1.1)
-      activemodel (>= 3.2.0)
-      addressable (~> 2.3)
-      json
-      oauth (~> 0.4.5)
-      rest-client (~> 1.6.7)
+    rest-client (1.7.3)
+      mime-types (>= 1.16, < 3.0)
+      netrc (~> 0.7)
     slop (3.5.0)
     thread_safe (0.3.4)
     tzinfo (1.2.1)
@@ -84,9 +88,10 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  activesupport
   dotenv!
   github_api
   pry
   rake
-  ruby-trello (~> 1.1.0)
+  ruby-trello!
   unicorn

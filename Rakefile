@@ -7,6 +7,7 @@ require 'rake/testtask'
 require 'github_api'
 require 'trello'
 require 'dotenv'
+require 'active_support/all'
 
 Dotenv.load # load the .env file
 
