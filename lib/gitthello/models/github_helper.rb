@@ -2,25 +2,21 @@ module Gitthello
   class GithubHelper
     attr_reader :milestone_bucket
 
-    def initialize(oauth_token, repo_for_new_cards, repos_to_consider)
+    def initialize(oauth_token, default_repo_for_new_cards, repos_to_consider)
       @github            = Github.new(:oauth_token => oauth_token)
-      @user, @repo       = repo_for_new_cards.split(/\//)
+      @user, @repo       = default_repo_for_new_cards.split(/\//)
       @repos_to_consider = repos_to_consider
     end
 
-    def create_milestone(title, desc, due)
-      @github.issues.milestones.
-        create( :user => @user, :repo => @repo, :title => title, :description => desc, :due_on => due)
+    def create_milestone(title, desc, due, repo = @repo)
+      begin
+        @github.issues.milestones.
+          create( :user => @user, :repo => repo, :title => title, :description => desc, :due_on => due)
+        rescue Github::Error::GithubError => e
+          puts e.message
+          false
+      end
     end
-
-    # TODO
-    # def issue_closed?(user, repo, number)
-    #   get_issue(user,repo,number).state == "closed"
-    # end
-
-    # def close_issue(user, repo, number)
-    #   @github.issues.edit(user, repo, number.to_i, :state => "closed")
-    # end
 
     def add_trello_url(milestone, url)
       owner, repo, number = repo_owner(milestone), repo_name(milestone), milestone.number
@@ -57,16 +53,26 @@ module Gitthello
 
     def new_milestones_to_trello(trello_helper)
       milestone_bucket.each do |repo_name, milestone|
-        # TODO Align dates
-        next if trello_helper.has_card?(milestone)
+        if existing_card = trello_helper.has_card?(milestone)
+          if card_and_milestone_dates_differ?(existing_card[:card].due, milestone.due_on)
+            # Update milestone with date from Trello card
+            owner, repo, number = repo_owner(milestone), repo_name(milestone), milestone.number
+            repeatthis do
+              @github.issues.milestones.
+                update(owner, repo, number.to_i,
+                     :due_on => existing_card[:card].due.to_date)
+            end
+          end
+        else
+          # Create card for milestone
+          prefix = repo_name.sub(/^mops./,'').downcase
 
-        prefix = repo_name.sub(/^mops./,'').downcase
-
-        card = trello_helper.
-          create_todo_card("[%s] %s" % [prefix, milestone["title"]],
-                           milestone["description"], milestone["html_url"],
-                           milestone["due_on"])
-        add_trello_url(milestone, card.url)
+          card = trello_helper.
+            create_to_schedule_card("[%s] %s" % [prefix, milestone["title"]],
+                             milestone["description"], milestone["html_url"],
+                             milestone["due_on"])
+          add_trello_url(milestone, card.url)
+        end
       end
     end
 
@@ -96,6 +102,18 @@ module Gitthello
         end
       end
       raise last_exception
+    end
+
+    def card_and_milestone_dates_differ?(card_date, milestone_date)
+      if card_date.nil? && milestone_date.nil?
+        false
+      elsif card_date.present? && (milestone_date.nil? || card_date.to_date.beginning_of_day != milestone_date.to_date.beginning_of_day)
+          true
+      elsif milestone_date.present? && (card_date.nil? || milestone_date.to_date.beginning_of_day != card_date.to_date.beginning_of_day)
+          true
+      else
+        false
+      end
     end
   end
 end

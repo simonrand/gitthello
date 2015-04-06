@@ -5,7 +5,7 @@ module Gitthello
     def initialize(board_config)
       @config = board_config.clone
       @github_helper = GithubHelper.new(Gitthello.configuration.github.token,
-                                        @config.repo_for_new_cards,
+                                        @config.default_repo_for_new_cards,
                                         @config.repos_to_consider)
       @trello_helper = TrelloHelper.new(Gitthello.configuration.trello.token,
                                         Gitthello.configuration.trello.dev_key,
@@ -15,18 +15,10 @@ module Gitthello
     def synchronize
       puts "==> Handling Board: #{@config.name}"
       @trello_helper.setup
-      # @trello_helper.close_issues(@github_helper)
-      # @trello_helper.move_cards_with_closed_issue(@github_helper)
-
       @github_helper.retrieve_milestones
       @github_helper.new_milestones_to_trello(@trello_helper)
       @trello_helper.new_cards_to_github(@github_helper)
     end
-
-    # def add_trello_link_to_milestones
-    #   @trello_helper.setup
-    #   @trello_helper.add_trello_link_to_milestones(@github_helper)
-    # end
 
     def name
       @config.name
