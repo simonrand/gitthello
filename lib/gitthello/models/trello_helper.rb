@@ -45,14 +45,26 @@ module Gitthello
           github_helper.add_trello_url(milestone, card.url)
           card.add_attachment(milestone.html_url, GITHUB_LINK_LABEL)
           unless(repo_name)
-            # Update card title to include repo name
-            card.name = "[#{repo_name}] #{card.name}"
+            # Update card title to include repo name and (0/0) count
+            card.name = "[#{repo_name}] #{card.name} (0/0)"
             card.save
           end
         else
           puts 'Failed to add GitHub milestone.'
         end
       end
+    end
+
+    def update_card_name_with_issue_count(card, milestone)
+      pattern = /\(\d+\/\d+\)$/
+      total_issues = milestone.open_issues + milestone.closed_issues
+      new_count = "(#{milestone.closed_issues}/#{total_issues})"
+      if card.name.match(pattern)
+        card.name = card.name.sub(pattern, new_count)
+      else
+        card.name = "#{card.name} #{new_count}"
+      end
+      card.save
     end
 
     private

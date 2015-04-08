@@ -44,7 +44,7 @@ module Gitthello
                    :per_page => 100).
               sort_by { |a| a.number.to_i }
           end.each do |milestone|
-            (@milestone_bucket) << [repo_name,milestone]
+            @milestone_bucket << [repo_name,milestone]
           end
       end
 
@@ -63,14 +63,19 @@ module Gitthello
                      :due_on => existing_card[:card].due.to_date)
             end
           end
+          repeatthis do
+            # Update card with milestone issue count
+            trello_helper.update_card_name_with_issue_count(existing_card[:card], milestone)
+          end
         else
           # Create card for milestone
           prefix = repo_name.sub(/^mops./,'').downcase
+          total_issues = milestone.closed_issues + milestone.open_issues
 
           card = trello_helper.
-            create_to_schedule_card("[%s] %s" % [prefix, milestone["title"]],
-                             milestone["description"], milestone["html_url"],
-                             milestone["due_on"])
+            create_to_schedule_card("[%s] %s (%d/%d)" %
+              [prefix, milestone.title, milestone.closed_issues, total_issues],
+              milestone.description, milestone.html_url, milestone.due_on)
           add_trello_url(milestone, card.url)
         end
       end
