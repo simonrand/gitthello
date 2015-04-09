@@ -1,12 +1,13 @@
 module Gitthello
   class TrelloHelper
-    attr_reader :list_to_schedule, :list_backlog, :list_done, :all_cards_at_github, :board
+    attr_reader :list_to_schedule, :list_backlog, :list_done, :all_cards_at_github, :board, :all_release_cards
 
     # https://trello.com/docs/api/card/#put-1-cards-card-id-or-shortlink
     MAX_TEXT_LENGTH=16384
     TRUNCATION_MESSAGE = "... [truncated by gitthello]"
     GITHUB_LINK_LABEL = 'GitHub'
-    IGNORE_CARDS_WITH_LABELS = ['Release']
+    RELEASE_LABEL = 'Release'
+    IGNORE_CARDS_WITH_LABELS = [RELEASE_LABEL, 'Key Date', 'Important Date']
 
     def initialize(token, dev_key, board_name)
       Trello.configure do |cfg|
@@ -23,6 +24,7 @@ module Gitthello
       raise "Missing Trello To Schedule list" if list_to_schedule.nil?
 
       @all_cards_at_github = all_cards_at_github
+      @all_release_cards = all_release_cards
       puts "Found #{@all_cards_at_github.count} cards already at GitHub"
       self
     end
@@ -65,6 +67,11 @@ module Gitthello
         card.name = "#{card.name} #{new_count}"
       end
       card.save
+    end
+
+    def update_release_issue_counts
+      puts "Release cards: #{@all_release_cards.length}"
+      # TODO: Loop through
     end
 
     private
@@ -110,6 +117,14 @@ module Gitthello
         a.cards.map do |card|
           github_details = obtain_github_details(card)
           github_details.nil? ? nil : { :card => card, :github_details => github_details }
+        end.compact
+      end.flatten
+    end
+
+    def all_release_cards
+      board.lists.map do |a|
+        a.cards.select do |card|
+          card.labels.map(&:name).include?(RELEASE_LABEL)
         end.compact
       end.flatten
     end

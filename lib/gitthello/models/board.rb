@@ -18,6 +18,7 @@ module Gitthello
       @github_helper.retrieve_milestones
       @github_helper.new_milestones_to_trello(@trello_helper)
       @trello_helper.new_cards_to_github(@github_helper)
+      @trello_helper.update_release_issue_counts
     end
 
     def name
