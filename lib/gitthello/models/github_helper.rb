@@ -65,7 +65,7 @@ module Gitthello
           end
           repeatthis do
             # Update card with milestone issue count
-            trello_helper.update_card_name_with_issue_count(existing_card[:card], milestone)
+            trello_helper.update_card_name_with_issue_count(existing_card[:card], milestone.closed_issues, milestone.closed_issues + milestone.open_issues)
           end
         else
           # Create card for milestone

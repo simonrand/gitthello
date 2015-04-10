@@ -1,6 +1,6 @@
 module Gitthello
   class TrelloHelper
-    attr_reader :list_to_schedule, :list_backlog, :list_done, :all_cards_at_github, :board, :all_release_cards
+    attr_reader :list_to_schedule, :list_backlog, :list_done, :all_cards_at_github, :all_cards_not_at_github, :all_cards_to_put_on_github, :all_release_cards, :board
 
     # https://trello.com/docs/api/card/#put-1-cards-card-id-or-shortlink
     MAX_TEXT_LENGTH=16384
@@ -23,9 +23,14 @@ module Gitthello
       @list_to_schedule = @board.lists.select { |a| a.name == 'To Schedule' }.first
       raise "Missing Trello To Schedule list" if list_to_schedule.nil?
 
-      @all_cards_at_github = all_cards_at_github
+      @all_cards_at_github, @all_cards_not_at_github = all_cards
+      @all_cards_to_put_on_github = all_cards_to_put_on_github
       @all_release_cards = all_release_cards
+
       puts "Found #{@all_cards_at_github.count} cards already at GitHub"
+      puts "Found #{@all_cards_not_at_github.count} cards not at GitHub"
+      puts "Found #{@all_cards_to_put_on_github.count} cards to put on GitHub"
+      puts "Found #{@all_release_cards.count} release cards"
       self
     end
 
@@ -40,7 +45,7 @@ module Gitthello
     end
 
     def new_cards_to_github(github_helper)
-      all_cards_not_at_github.each do |card|
+      @all_cards_to_put_on_github.each do |card|
         puts "Adding milestone to #{get_repo_name_from_card_title(card.name)} repo"
         repo_name = get_repo_name_from_card_title(card.name)
         if milestone = github_helper.create_milestone(card.name.sub(/^\[.*\]\s?/, ''), card.desc, card.due, repo_name)
@@ -57,32 +62,58 @@ module Gitthello
       end
     end
 
-    def update_card_name_with_issue_count(card, milestone)
+    def update_card_name_with_issue_count(card, closed_issues, total_issues)
+      puts "Updating #{card.name} with new issue count"
       pattern = /\(\d+\/\d+\)$/
-      total_issues = milestone.open_issues + milestone.closed_issues
-      new_count = "(#{milestone.closed_issues}/#{total_issues})"
+      new_count = "(#{closed_issues}/#{total_issues})"
       if card.name.match(pattern)
         card.name = card.name.sub(pattern, new_count)
       else
-        card.name = "#{card.name} #{new_count}"
+        card.name = "#{card.name.rstrip} #{new_count}"
       end
+      puts "Saving #{card.name}"
       card.save
     end
 
     def update_release_issue_counts
-      puts "Release cards: #{@all_release_cards.length}"
-      # TODO: Loop through
+      puts 'Updating release card issue counts'
+      pattern = /(https:\/\/trello.com\/c\/.*\/\d+)-.*/
+      @all_release_cards.each do |card|
+        attachments = obtain_trello_card_attachments(card.attachments)
+        puts "Release #{card.name} has #{attachments.length} sub cards"
+
+        total_closed_issues, total_issues = attachments.map do |attachment|
+          @all_cards_at_github.map do |card|
+            card[:card]
+          end.detect do |card|
+            card.url.match(pattern)[1] == attachment.url.match(pattern)[1]
+          end.name.match(/\((\d+)\/(\d+)\)$/)[1..2].map(&:to_i)
+        end.transpose.map { |x| x.reduce(:+) }
+
+        update_card_name_with_issue_count(card, total_closed_issues, total_issues) if total_closed_issues && total_issues
+      end
     end
 
     private
 
     def obtain_github_details(card)
-      card.attachments.select do |a|
-        a.name == GITHUB_LINK_LABEL || a.url =~ /https:\/\/github.com.*issues.*/
-      end.first
+      puts "Obtaining GitHub details for #{card.name}"
+      repeatthis do
+        card.attachments.select do |a|
+          a.name == GITHUB_LINK_LABEL || a.url =~ /https:\/\/github.com.*issues.*/
+        end.first
+      end
+    end
+
+    def obtain_trello_card_attachments(attachments)
+      puts "Obtaining Trello card attachments"
+      attachments.select do |a|
+        a.url =~ /https:\/\/trello.com\/c\/.*/
+      end
     end
 
     def retrieve_board
+      puts "Retrieving Trello Board"
       Trello::Board.all.select { |b| b.name == @board_name }.first
     end
 
@@ -100,33 +131,38 @@ module Gitthello
       end
     end
 
-    def all_cards_not_at_github
-      board.lists.map do |a|
-        a.cards.map do |card|
-          obtain_github_details(card).nil? ? card : nil
-        end.compact
-      end.flatten.reject do |card|
-        # Ignore cards in the IGNORE_CARDS_WITH_LABELS list
-        # or cards with no repo name
-        !(card.labels.map(&:name) & IGNORE_CARDS_WITH_LABELS).empty? || !get_repo_name_from_card_title(card.name)
+    def all_cards
+      puts "Retrieving all cards"
+      all_cards = board.lists.map do |list|
+        list.cards.map do |card|
+          github_details = get_repo_name_from_card_title(card.name) ? obtain_github_details(card) : nil
+          { :card => card, :github_details => github_details }
+        end
+      end.flatten
+
+      all_cards.partition do |card|
+        card[:github_details].present?
       end
     end
 
-    def all_cards_at_github
-      board.lists.map do |a|
-        a.cards.map do |card|
-          github_details = obtain_github_details(card)
-          github_details.nil? ? nil : { :card => card, :github_details => github_details }
-        end.compact
-      end.flatten
+    def all_cards_to_put_on_github
+      puts "Retrieving all cards to put on GitHub"
+      @all_cards_not_at_github.map do |card|
+        card[:card]
+      end.select do |card|
+        get_repo_name_from_card_title(card.name)
+      end
     end
 
     def all_release_cards
-      board.lists.map do |a|
-        a.cards.select do |card|
+      puts "Retrieving all release cards"
+      @all_cards_not_at_github.map do |card|
+        card[:card]
+      end.select do |card|
+        repeatthis do
           card.labels.map(&:name).include?(RELEASE_LABEL)
-        end.compact
-      end.flatten
+        end
+      end
     end
 
     def truncate_text(text)
@@ -135,6 +171,20 @@ module Gitthello
       else
         text
       end
+    end
+
+    def repeatthis(cnt=5,&block)
+      last_exception = nil
+      cnt.times do
+        begin
+          return yield
+        rescue Exception => e
+          last_exception = e
+          sleep 0.1
+          next
+        end
+      end
+      raise last_exception
     end
   end
 end
