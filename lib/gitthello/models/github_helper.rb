@@ -32,6 +32,11 @@ module Gitthello
       end
     end
 
+    def retrieve_milestone(owner, name, number)
+      puts 'Retrieve milestone'
+      @github.issues.milestones.get(owner, name, number)
+    end
+
     def retrieve_milestones
       @milestone_bucket = []
 
@@ -40,7 +45,7 @@ module Gitthello
           puts "Checking #{repo_owner}/#{repo_name}"
           repeatthis do
             @github.issues.milestones.
-              list(:user => repo_owner, :repo => repo_name, :state => "open",
+              list(:user => repo_owner, :repo => repo_name, :state => 'open',
                    :per_page => 100).
               sort_by { |a| a.number.to_i }
           end.each do |milestone|
@@ -75,7 +80,7 @@ module Gitthello
           card = trello_helper.
             create_to_schedule_card("[%s] %s (%d/%d)" %
               [prefix, milestone.title, milestone.closed_issues, total_issues],
-              milestone.description, milestone.html_url, milestone.due_on)
+              milestone.description, milestone.html_url, milestone.url, milestone.due_on)
           add_trello_url(milestone, card.url)
         end
       end

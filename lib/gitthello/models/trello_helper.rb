@@ -6,6 +6,7 @@ module Gitthello
     MAX_TEXT_LENGTH=16384
     TRUNCATION_MESSAGE = "... [truncated by gitthello]"
     GITHUB_LINK_LABEL = 'GitHub'
+    GITHUB_API_LINK_LABEL = 'GitHub API'
     RELEASE_LABEL = 'Release'
     IGNORE_CARDS_WITH_LABELS = [RELEASE_LABEL, 'Key Date', 'Important Date']
 
@@ -40,8 +41,8 @@ module Gitthello
       end
     end
 
-    def create_to_schedule_card(name, desc, milestone_url, due_on)
-      create_card_in_list(name, desc, milestone_url, list_to_schedule.id, due_on)
+    def create_to_schedule_card(name, desc, milestone_url, milestone_api_url, due_on)
+      create_card_in_list(name, desc, milestone_url, milestone_api_url, list_to_schedule.id, due_on)
     end
 
     def new_cards_to_github(github_helper)
@@ -51,6 +52,7 @@ module Gitthello
         if milestone = github_helper.create_milestone(card.name.sub(/^\[.*\]\s?/, ''), card.desc, card.due, repo_name)
           github_helper.add_trello_url(milestone, card.url)
           card.add_attachment(milestone.html_url, GITHUB_LINK_LABEL)
+          card.add_attachment(milestone.url, GITHUB_API_LINK_LABEL)
           unless(repo_name)
             # Update card title to include repo name and (0/0) count
             card.name = "[#{repo_name}] #{card.name} (0/0)"
@@ -62,17 +64,50 @@ module Gitthello
       end
     end
 
+    def update_closed_milestones(github_helper)
+      puts 'Updating closed milestones'
+
+      all_milestone_urls = github_helper.milestone_bucket.map do |milestone|
+        puts milestone[1].url
+        milestone[1].url
+      end
+
+      @all_cards_at_github.each do |card|
+        if card[:github_api_details] && !all_milestone_urls.include?(card[:github_api_details].url)
+
+          milestone_details = card[:github_api_details].url.match(/https:\/\/api.github.com\/repos\/(.*)\/(.*)\/milestones\/(\d+)$/)
+
+          milestone = github_helper.retrieve_milestone(milestone_details[1], milestone_details[2], milestone_details[3])
+
+          update_card_name_with_issue_count(card[:card], milestone.closed_issues, milestone.closed_issues + milestone.open_issues)
+        end
+      end
+    end
+
     def update_card_name_with_issue_count(card, closed_issues, total_issues)
       puts "Updating #{card.name} with new issue count"
+
       pattern = /\(\d+\/\d+\)$/
       new_count = "(#{closed_issues}/#{total_issues})"
+      update_name = false
+
       if card.name.match(pattern)
-        card.name = card.name.sub(pattern, new_count)
+        new_name = card.name.sub(pattern, new_count)
+        if card.name != new_name
+          card.name = new_name
+          update_name = true
+        end
       else
         card.name = "#{card.name.rstrip} #{new_count}"
+        update_name = true
       end
-      puts "Saving #{card.name}"
-      card.save
+
+      if update_name
+        puts "Saving #{card.name}"
+        card.save
+      else
+        puts "No change to card name"
+      end
     end
 
     def update_release_issue_counts
@@ -98,11 +133,19 @@ module Gitthello
 
     def obtain_github_details(card)
       puts "Obtaining GitHub details for #{card.name}"
-      repeatthis do
-        card.attachments.select do |a|
-          a.name == GITHUB_LINK_LABEL || a.url =~ /https:\/\/github.com.*issues.*/
-        end.first
-      end
+
+      attachments = card.attachments
+      github_details = attachments.select do |a|
+        a.name == GITHUB_LINK_LABEL
+      end.first
+      github_api_details = attachments.select do |a|
+        a.name == GITHUB_API_LINK_LABEL
+      end.first
+
+      {
+        :github_details => github_details,
+        :github_api_details => github_api_details
+      }
     end
 
     def obtain_trello_card_attachments(attachments)
@@ -117,11 +160,12 @@ module Gitthello
       Trello::Board.all.select { |b| b.name == @board_name }.first
     end
 
-    def create_card_in_list(name, desc, url, list_id, due_on = nil)
+    def create_card_in_list(name, desc, url, api_url, list_id, due_on = nil)
       Trello::Card.
         create(:name => truncate_text(name), :list_id => list_id,
                :desc => truncate_text(desc), :due => due_on).tap do |card|
         card.add_attachment(url, GITHUB_LINK_LABEL)
+        card.add_attachment(api_url, GITHUB_API_LINK_LABEL)
       end
     end
 
@@ -136,7 +180,11 @@ module Gitthello
       all_cards = board.lists.map do |list|
         list.cards.map do |card|
           github_details = get_repo_name_from_card_title(card.name) ? obtain_github_details(card) : nil
-          { :card => card, :github_details => github_details }
+          if github_details
+            { :card => card, :github_details => github_details[:github_details], :github_api_details => github_details[:github_api_details] }
+          else
+            { :card => card }
+          end
         end
       end.flatten
 

@@ -15,10 +15,11 @@ module Gitthello
     def synchronize
       puts "==> Handling Board: #{@config.name}"
       @trello_helper.setup
-      # @github_helper.retrieve_milestones
-      # @github_helper.new_milestones_to_trello(@trello_helper)
-      # @trello_helper.new_cards_to_github(@github_helper)
+      @github_helper.retrieve_milestones
+      @github_helper.new_milestones_to_trello(@trello_helper)
+      @trello_helper.new_cards_to_github(@github_helper)
       @trello_helper.update_release_issue_counts
+      @trello_helper.update_closed_milestones(@github_helper)
     end
 
     def name
