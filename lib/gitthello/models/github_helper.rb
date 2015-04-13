@@ -33,7 +33,6 @@ module Gitthello
     end
 
     def retrieve_milestone(owner, name, number)
-      puts 'Retrieve milestone'
       @github.issues.milestones.get(owner, name, number)
     end
 
@@ -57,8 +56,18 @@ module Gitthello
     end
 
     def new_milestones_to_trello(trello_helper)
+
+      puts '==> Adding new to Trello & updating existing cards in Trello'
+
+      # TODO Update should happen elsewhere
+
+      existing_milestones_with_cards = 0
+      milestones_without_cards = 0
+
       milestone_bucket.each do |repo_name, milestone|
         if existing_card = trello_helper.has_card?(milestone)
+          existing_milestones_with_cards += 1
+
           if card_and_milestone_dates_differ?(existing_card[:card].due, milestone.due_on)
             # Update milestone with date from Trello card
             owner, repo, number = repo_owner(milestone), repo_name(milestone), milestone.number
@@ -74,7 +83,8 @@ module Gitthello
           end
         else
           # Create card for milestone
-          prefix = repo_name.sub(/^mops./,'').downcase
+          milestones_without_cards += 1
+          prefix = repo_name.downcase
           total_issues = milestone.closed_issues + milestone.open_issues
 
           card = trello_helper.
@@ -84,6 +94,9 @@ module Gitthello
           add_trello_url(milestone, card.url)
         end
       end
+
+      puts "Found #{existing_milestones_with_cards} milestones with cards"
+      puts "Found #{milestones_without_cards} milestones without cards (and added them)"
     end
 
     private

@@ -46,12 +46,16 @@ module Gitthello
     end
 
     def new_cards_to_github(github_helper)
+      puts '==> Adding new Trello cards to GitHub'
+
       @all_cards_to_put_on_github.each do |card|
         puts "Adding milestone to #{get_repo_name_from_card_title(card.name)} repo"
         repo_name = get_repo_name_from_card_title(card.name)
         if milestone = github_helper.create_milestone(card.name.sub(/^\[.*\]\s?/, ''), card.desc, card.due, repo_name)
           github_helper.add_trello_url(milestone, card.url)
+          # Add GitHub web url
           card.add_attachment(milestone.html_url, GITHUB_LINK_LABEL)
+          # Add GitHub API url (used when the milestone is closed)
           card.add_attachment(milestone.url, GITHUB_API_LINK_LABEL)
           unless(repo_name)
             # Update card title to include repo name and (0/0) count
@@ -65,10 +69,9 @@ module Gitthello
     end
 
     def update_closed_milestones(github_helper)
-      puts 'Updating closed milestones'
+      puts '==> Updating closed milestones'
 
       all_milestone_urls = github_helper.milestone_bucket.map do |milestone|
-        puts milestone[1].url
         milestone[1].url
       end
 
@@ -85,7 +88,6 @@ module Gitthello
     end
 
     def update_card_name_with_issue_count(card, closed_issues, total_issues)
-      puts "Updating #{card.name} with new issue count"
 
       pattern = /\(\d+\/\d+\)$/
       new_count = "(#{closed_issues}/#{total_issues})"
@@ -103,19 +105,18 @@ module Gitthello
       end
 
       if update_name
-        puts "Saving #{card.name}"
+        puts "Updating #{card.name} with new issue count"
         card.save
-      else
-        puts "No change to card name"
       end
     end
 
     def update_release_issue_counts
-      puts 'Updating release card issue counts'
+      puts '==> Updating release card issue counts'
+
       pattern = /(https:\/\/trello.com\/c\/.*\/\d+)-.*/
       @all_release_cards.each do |card|
         attachments = obtain_trello_card_attachments(card.attachments)
-        puts "Release #{card.name} has #{attachments.length} sub cards"
+        # puts "Release #{card.name} has #{attachments.length} sub cards"
 
         total_closed_issues, total_issues = attachments.map do |attachment|
           @all_cards_at_github.map do |card|
@@ -132,7 +133,7 @@ module Gitthello
     private
 
     def obtain_github_details(card)
-      puts "Obtaining GitHub details for #{card.name}"
+      # puts "Obtaining GitHub details for #{card.name}"
 
       attachments = card.attachments
       github_details = attachments.select do |a|
@@ -149,14 +150,14 @@ module Gitthello
     end
 
     def obtain_trello_card_attachments(attachments)
-      puts "Obtaining Trello card attachments"
+      # puts "Obtaining Trello card attachments"
       attachments.select do |a|
         a.url =~ /https:\/\/trello.com\/c\/.*/
       end
     end
 
     def retrieve_board
-      puts "Retrieving Trello Board"
+      puts "==> Retrieving Trello Board"
       Trello::Board.all.select { |b| b.name == @board_name }.first
     end
 
@@ -176,7 +177,7 @@ module Gitthello
     end
 
     def all_cards
-      puts "Retrieving all cards"
+      puts 'Retrieving all cards'
       all_cards = board.lists.map do |list|
         list.cards.map do |card|
           github_details = get_repo_name_from_card_title(card.name) ? obtain_github_details(card) : nil
@@ -194,7 +195,7 @@ module Gitthello
     end
 
     def all_cards_to_put_on_github
-      puts "Retrieving all cards to put on GitHub"
+      puts 'Retrieving all cards to put on GitHub'
       @all_cards_not_at_github.map do |card|
         card[:card]
       end.select do |card|
@@ -203,7 +204,7 @@ module Gitthello
     end
 
     def all_release_cards
-      puts "Retrieving all release cards"
+      puts 'Retrieving all release cards'
       @all_cards_not_at_github.map do |card|
         card[:card]
       end.select do |card|
