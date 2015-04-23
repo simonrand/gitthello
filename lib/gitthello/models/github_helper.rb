@@ -59,7 +59,7 @@ module Gitthello
 
       puts '==> Adding new to Trello & updating existing cards in Trello'
 
-      # TODO Update should happen elsewhere
+      # TODO: Update should happen elsewhere
 
       existing_milestones_with_cards = 0
       milestones_without_cards = 0
@@ -68,15 +68,16 @@ module Gitthello
         if existing_card = trello_helper.has_card?(milestone)
           existing_milestones_with_cards += 1
 
-          if card_and_milestone_dates_differ?(existing_card[:card].due, milestone.due_on)
-            # Update milestone with date from Trello card
-            owner, repo, number = repo_owner(milestone), repo_name(milestone), milestone.number
-            repeatthis do
-              @github.issues.milestones.
-                update(owner, repo, number.to_i,
-                     :due_on => existing_card[:card].due.to_date)
-            end
-          end
+          # NOTE: Let's not do the date syncing for now
+          # if card_and_milestone_dates_differ?(existing_card[:card].due, milestone.due_on)
+          #   # Update milestone with date from Trello card
+          #   owner, repo, number = repo_owner(milestone), repo_name(milestone), milestone.number
+          #   repeatthis do
+          #     @github.issues.milestones.
+          #       update(owner, repo, number.to_i,
+          #            :due_on => existing_card[:card].due.to_date)
+          #   end
+          # end
           repeatthis do
             # Update card with milestone issue count
             trello_helper.update_card_name_with_issue_count(existing_card[:card], milestone.closed_issues, milestone.closed_issues + milestone.open_issues)
