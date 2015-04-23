@@ -56,6 +56,7 @@ module Gitthello
           # Add GitHub web url
           card.add_attachment(milestone.html_url, GITHUB_LINK_LABEL)
           # Add GitHub API url (used when the milestone is closed)
+          # FIXME: is the API url is available at this point?
           card.add_attachment(milestone.url, GITHUB_API_LINK_LABEL)
           unless(repo_name)
             # Update card title to include repo name and (0/0) count
@@ -77,6 +78,9 @@ module Gitthello
 
       @all_cards_at_github.each do |card|
         if card[:github_api_details] && !all_milestone_urls.include?(card[:github_api_details].url)
+
+          # puts "Found closed milestone: #{card[:card].name}"
+          # puts card[:github_api_details].url
 
           milestone_details = card[:github_api_details].url.match(/https:\/\/api.github.com\/repos\/(.*)\/(.*)\/milestones\/(\d+)$/)
 
@@ -116,14 +120,18 @@ module Gitthello
       pattern = /(https:\/\/trello.com\/c\/.*\/\d+)-.*/
       @all_release_cards.each do |card|
         attachments = obtain_trello_card_attachments(card.attachments)
-        # puts "Release #{card.name} has #{attachments.length} sub cards"
+        puts "Release #{card.name} has #{attachments.length} sub cards"
 
         total_closed_issues, total_issues = attachments.map do |attachment|
-          @all_cards_at_github.map do |card|
+          sub_card = @all_cards_at_github.map do |card|
             card[:card]
           end.detect do |card|
             card.url.match(pattern)[1] == attachment.url.match(pattern)[1]
-          end.name.match(/\((\d+)\/(\d+)\)$/)[1..2].map(&:to_i)
+          end
+
+          sub_card ||= get_trello_card(get_trello_card_id_from_url(attachment.url))
+
+          sub_card.name.match(/\((\d+)\/(\d+)\)$/)[1..2].map(&:to_i)
         end.transpose.map { |x| x.reduce(:+) }
 
         update_card_name_with_issue_count(card, total_closed_issues, total_issues) if total_closed_issues && total_issues
@@ -131,6 +139,14 @@ module Gitthello
     end
 
     private
+
+    def get_trello_card(card_id)
+      Trello::Card.find(card_id)
+    end
+
+    def get_trello_card_id_from_url(url)
+      url.match(/https:\/\/trello.com\/c\/(.+)\/.+$/)[1]
+    end
 
     def obtain_github_details(card)
       # puts "Obtaining GitHub details for #{card.name}"

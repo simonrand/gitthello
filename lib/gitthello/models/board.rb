@@ -20,6 +20,7 @@ module Gitthello
       @trello_helper.new_cards_to_github(@github_helper)
       @trello_helper.update_release_issue_counts
       @trello_helper.update_closed_milestones(@github_helper)
+      puts "==> Done"
     end
 
     def name
